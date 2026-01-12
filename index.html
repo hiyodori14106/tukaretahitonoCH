@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>私の掲示板</title>
+    <!-- Gun.js（サーバーなしで通信するライブラリ）を読み込む -->
+    <script src="https://cdn.jsdelivr.net/npm/gun/gun.js"></script>
+    <style>
+        body {
+            background-color: #efefef; /* 2chっぽい背景色 */
+            font-family: "MS PGothic", sans-serif; /* 昔っぽいフォント */
+            color: #000;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 20px;
+            border: 1px solid #ccc;
+        }
+        h1 {
+            color: #cc0000;
+            font-size: 24px;
+            border-bottom: 1px solid #ccc;
+        }
+        .post {
+            margin-bottom: 20px;
+            border-bottom: 1px dotted #999;
+            padding-bottom: 10px;
+        }
+        .meta {
+            color: #008000; /* 名前の色 */
+            font-weight: bold;
+        }
+        .date {
+            font-size: 12px;
+            color: #666;
+            margin-left: 10px;
+        }
+        .message {
+            margin-top: 5px;
+            font-size: 16px;
+            line-height: 1.5;
+            white-space: pre-wrap; /* 改行を反映 */
+        }
+        .form-area {
+            background-color: #e0e0e0;
+            padding: 15px;
+            margin-bottom: 20px;
+            border: 1px solid #999;
+        }
+        input, textarea {
+            width: 100%;
+            margin-bottom: 10px;
+            box-sizing: border-box;
+        }
+        button {
+            padding: 5px 20px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>避難所（GitHub版）</h1>
+    
+    <div class="form-area">
+        <input type="text" id="name" placeholder="名前（省略可）">
+        <textarea id="content" rows="4" placeholder="ここに書き込む"></textarea>
+        <button onclick="postMessage()">書き込む</button>
+    </div>
+
+    <!-- ここに書き込みが表示される -->
+    <div id="thread"></div>
+</div>
+
+<script>
+    // 1. Gun.jsを起動（世界中の無料リレーサーバーにつなぐ）
+    // ※注意：公共のリレーサーバーを使っているため、たまにデータが消えたりします
+    var gun = Gun(['https://gun-manhattan.herokuapp.com/gun']);
+
+    // 'my-bbs-data' という部屋を使う（ここを書き換えると別の板になる）
+    var board = gun.get('my-secret-bbs-v1');
+
+    // 2. 書き込む機能
+    function postMessage() {
+        var nameInput = document.getElementById('name').value;
+        var contentInput = document.getElementById('content').value;
+
+        if(!contentInput) { alert("本文がないよ！"); return; }
+
+        var data = {
+            name: nameInput || "名無しさん",
+            text: contentInput,
+            time: new Date().toLocaleString()
+        };
+
+        // Gunにデータを保存（ばら撒く）
+        board.set(data);
+
+        // 入力欄をクリア
+        document.getElementById('content').value = "";
+    }
+
+    // 3. 読み込む機能（誰かが書き込むとリアルタイムでここが動く）
+    board.map().once(function(data, id){
+        if(!data || !data.text) return; // ゴミデータ対策
+
+        var html = `
+            <div class="post">
+                <div class="meta">
+                    ${escapeHtml(data.name)} 
+                    <span class="date">${data.time}</span>
+                </div>
+                <div class="message">${escapeHtml(data.text)}</div>
+            </div>
+        `;
+        
+        // 新しい書き込みを上に追加する（簡易的）
+        // ※本来は日付順にソートが必要ですが、簡易版なので到着順です
+        var threadDiv = document.getElementById('thread');
+        threadDiv.insertAdjacentHTML('afterbegin', html);
+    });
+
+    // XSS対策（変なスクリプトを埋め込まれないようにするおまじない）
+    function escapeHtml(str) {
+        if(!str) return "";
+        return str.replace(/[&<>"']/g, function(match) {
+            return {
+                '&': '&amp;', '<': '&lt;', '>': '&gt;',
+                '"': '&quot;', "'": '&#39;'
+            }[match];
+        });
+    }
+</script>
+
+</body>
+</html>
